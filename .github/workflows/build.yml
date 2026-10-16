@@ -1,41 +1,65 @@
-name: Optimized TWRP Build
+name: Robust TWRP Build for Xiaomi 14T Pro
+
 on:
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-20.04
+
     steps:
-      - name: Checkout
+      - name: Checkout Your Device Tree
         uses: actions/checkout@v4
 
-      - name: Cleanup & Build Tools
+      - name: Free Disk Space & Setup Robust Swap
         run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
-          sudo apt-get update
-          sudo apt-get install -y bc bison build-essential curl flex g++-multilib gcc-multilib git gperf libxml2-utils lzop rsync unzip zip python2 python3
-          mkdir ~/bin && curl https://googleapis.com > ~/bin/repo
-          chmod a+x ~/bin/repo
+          if command -v docker >/dev/null; then sudo docker image prune -a -f || true; fi
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc || true
+          if ! sudo fallocate -l 8G /swapfile 2>/dev/null; then
+            sudo dd if=/dev/zero of=/swapfile bs=1M count=8192 status=progress
+          fi
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile || true
+          sudo swapon /swapfile || true
+          df -h
 
-      - name: Fast Sync Source
+      - name: Install Compatible Compilers & JDK
         run: |
-          export PATH=~/bin:$PATH
-          mkdir ~/twrp && cd ~/twrp
-          repo init -u https://github.com -b twrp-14.1 --depth=1
+          sudo apt-get update
+          sudo apt-get install -y bc bison build-essential curl flex \
+            g++-multilib gcc-multilib git gperf libxml2-utils lzop rsync \
+            unzip zip python3 openjdk-11-jdk ccache
+
+      - name: Fetch Verified Git-Repo Launcher
+        run: |
+          mkdir -p ~/bin
+          curl -s -o ~/bin/repo https://storage.googleapis.com/git-repo-downloads/repo
+          chmod a+x ~/bin/repo
+          echo "PATH=$HOME/bin:$PATH" >> $GITHUB_ENV
+
+      - name: Sync Minimal TWRP Source Code (canonical manifest)
+        run: |
+          export PATH=$HOME/bin:$PATH
+          mkdir -p ~/twrp && cd ~/twrp
+          repo init -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_lineageos.git -b twrp-14.1 --depth=1
           repo sync -c -j$(nproc) --force-sync --no-clone-bundle --no-tags
 
-      - name: Build Recovery
+      - name: Clean Inject Tree & Compile Recovery
         run: |
+          set -e
+          export PATH=$HOME/bin:$PATH
           cd ~/twrp
           mkdir -p device/xiaomi/rothko
-          cp -r $GITHUB_WORKSPACE/* device/xiaomi/rothko/
+          rsync -a --delete --exclude='.git' --exclude='.github' --exclude='out' "$GITHUB_WORKSPACE/" device/xiaomi/rothko/
+          # Only enable missing deps if you know what is missing
           export ALLOW_MISSING_DEPENDENCIES=true
           . build/envsetup.sh
-          lunch twrp_rothko-eng || true
+          lunch twrp_rothko-eng
           mka vendor_bootimage -j$(nproc)
 
-      - name: Upload Output
+      - name: Upload Finished TWRP Image
+        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: TWRP-Xiaomi14TPro
-          path: ~/twrp/out/target/product/rothko/vendor_boot.img
+          name: TWRP-Rothko-Android16-Run-${{ github.run_number }}
+          path: /home/runner/twrp/out/target/product/rothko/vendor_boot.img
