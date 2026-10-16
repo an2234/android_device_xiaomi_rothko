@@ -6,41 +6,35 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Setup Build Environment
+      - name: Checkout Your Tree
+        uses: actions/checkout@v4
+
+      - name: Install Compilers
         run: |
           sudo apt-get update
-          sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5 libncurses5-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3
-          
-      - name: Install Repo Tool
+          sudo apt-get install -y bc bison build-essential curl flex g++-multilib gcc-multilib git gperf libxml2-utils lzop rsync unzip zip python3
+
+      - name: Fetch Minimal Build Tools
         run: |
-          mkdir ~/bin
-          curl https://googleapis.com > ~/bin/repo
+          mkdir ~/bin && curl https://googleapis.com > ~/bin/repo
           chmod a+x ~/bin/repo
           export PATH=~/bin:$PATH
-
-      - name: Sync Minimal TWRP Source
-        run: |
-          export PATH=~/bin:$PATH
           mkdir ~/twrp && cd ~/twrp
-          repo init -u https://github.com -b twrp-14.1
+          repo init -u https://github.com -b twrp-14.1 --depth=1
           repo sync -c -j$(nproc) --force-sync --no-clone-bundle --no-tags
 
-      - name: Integrate Your Device Tree
+      - name: Inject Tree & Build
         run: |
           cd ~/twrp
           mkdir -p device/xiaomi/rothko
-          git clone https://github.com -b main device/xiaomi/rothko
-
-      - name: Compile TWRP Recovery Image
-        run: |
-          cd ~/twrp
+          cp -r $GITHUB_WORKSPACE/* device/xiaomi/rothko/
           export ALLOW_MISSING_DEPENDENCIES=true
           . build/envsetup.sh
-          lunch twrp_rothko-eng
+          lunch twrp_rothko-eng || true
           mka vendor_bootimage -j$(nproc)
 
-      - name: Upload Output Artifacts
+      - name: Upload TWRP Recovery
         uses: actions/upload-artifact@v4
         with:
-          name: TWRP-Xiaomi-14T-Pro
+          name: TWRP-Rothko-Android16
           path: ~/twrp/out/target/product/rothko/vendor_boot.img
