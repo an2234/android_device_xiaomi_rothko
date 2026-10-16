@@ -5,7 +5,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Your Device Tree
@@ -51,7 +51,6 @@ jobs:
           cd ~/twrp
           mkdir -p device/xiaomi/rothko
           rsync -a --delete --exclude='.git' --exclude='.github' --exclude='out' "$GITHUB_WORKSPACE/" device/xiaomi/rothko/
-          # Only enable missing deps if you know what is missing
           export ALLOW_MISSING_DEPENDENCIES=true
           . build/envsetup.sh
           lunch twrp_rothko-eng
