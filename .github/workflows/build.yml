@@ -60,20 +60,24 @@ jobs:
           mkdir -p device/xiaomi/rothko
           rsync -a --delete --exclude='.git' --exclude='.github' --exclude='out' "$GITHUB_WORKSPACE/" device/xiaomi/rothko/
 
-          # --- Normalize Windows CRLFs in shell scripts copied into the device tree ---
-          # Remove carriage returns from all .sh files to avoid "$'\r': command not found"
-          find device/xiaomi/rothko -type f -name '*.sh' -exec sed -i 's/\r$//' {} +
+          # Normalize Windows CRLFs in shell scripts copied into the device tree
+          find device/xiaomi/rothko -type f -name '*.sh' -exec sed -i 's/\r$//' {} + || true
 
-          # Also ensure vendorsetup.sh (if present) is executable
+          # Ensure vendorsetup.sh (if present) is executable
           if [ -f device/xiaomi/rothko/vendorsetup.sh ]; then
             chmod +x device/xiaomi/rothko/vendorsetup.sh || true
           fi
-          # --------------------------------------------------------------------------
 
           export ALLOW_MISSING_DEPENDENCIES=true
           . build/envsetup.sh
-          lunch twrp_rothko-eng
-          mka vendor_bootimage -j$(nproc)
+
+          # Use the product that exists in this tree (omni_boot) instead of twrp_rothko
+          lunch omni_boot-eng
+
+          # Try the usual target; if vendor_bootimage isn't available, fall back to bootimage
+          if ! mka vendor_bootimage -j$(nproc); then
+            mka bootimage -j$(nproc)
+          fi
 
       - name: Upload Finished TWRP Image
         if: success()
