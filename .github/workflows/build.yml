@@ -71,7 +71,7 @@ jobs:
           export ALLOW_MISSING_DEPENDENCIES=true
           . build/envsetup.sh
 
-          # Use the product that exists in this tree (omni_boot) instead of twrp_rothko
+          # Use the product that exists in this tree (omni_boot)
           lunch omni_boot-eng
 
           # Try the usual target; if vendor_bootimage isn't available, fall back to bootimage
